@@ -1,71 +1,44 @@
-# coding=utf-8
+import sys
 import base64
-from random import choice
-from string import letters
-
-try:
-    from Crypto import Random
-    from Crypto.Cipher import AES
-except ImportError:
-    import crypto
-    import sys
-
-    sys.modules['Crypto'] = crypto
-    from crypto.Cipher import AES
-    from crypto import Random
+from Crypto.Cipher import AES
 
 
 class AESCipher(object):
     def __init__(self, key):
-        self.bs = AES.block_size
-        self.key = key
+        self.bs = 32
 
-    def encrypt(self, raw):
-        _raw = raw
+    def encrypt(self, raw, iv):
         raw = self._pad(raw)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        encrypted = cipher.encrypt(raw)
+        encoded = base64.b64encode(iv.encode() + encrypted)
+        return str(encoded, 'utf-8')
 
-        print "block size: ", AES.block_size
-        print raw, ';'
-        print _raw, ';'
-
-        iv = "".join([choice(letters[:26]) for i in xrange(16)])
-        print " iv :", iv
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return base64.b64encode(iv + cipher.encrypt(raw))
-
-    def decrypt(self, enc):
-        enc = base64.b64decode(enc)
-        iv = enc[:AES.block_size]
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+    def decrypt(self, raw):
+        decoded = base64.b64decode(raw)
+        iv = decoded[:AES.block_size]
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        decrypted = cipher.decrypt(decoded[AES.block_size:])
+        return str(self._unpad(decrypted), 'utf-8')
 
     def _pad(self, s):
-        a = (self.bs - len(s) % self.bs)
-        b = chr(self.bs - len(s) % self.bs)
-        return s + a * b
+        return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
 
-    @staticmethod
-    def _unpad(s):
-        return s[:-ord(s[len(s) - 1:])]
-def encrypt(k, t):
-    o = AESCipher(k)
-    return o.encrypt(t)
+    def _unpad(self, s):
+        return s[:-ord(s[len(s)-1:])]
 
-
-def decrypt(k, t):
-    o = AESCipher(k)
-    return o.decrypt(t)
-
-
-def main():
-    k = "qwertyuiopasdfghjklzxcvbnmqwerty"
-    s1 = "Hello World!"
-
-    d2 = encrypt(k, s1)
-
-    print " Password :", k
-    print "Encrypted :", d2
-    print "    Plain :", decrypt(k, d2)
 
 if __name__ == '__main__':
-    main()
+    key = 'qwertyuiopasdfghjklzxcvbnmqwerty'
+    iv = "ksalksaksadksald"
+    cipher = AESCipher(key)
+
+    plaintext = '542#1504891440039'
+    encrypted = cipher.encrypt(plaintext, iv)
+    print('Encrypted: %s' % encrypted)
+    ciphertext = 'a3NhbGtzYWtzYWRrc2FsZDaMIPDC+Vev8jlgL0HXHGn6iPSJEkNu+fIgQtC0W2yT'
+    assert encrypted == ciphertext
+
+    decrypted = cipher.decrypt(encrypted)
+    print('Decrypted: %s' % decrypted)
+    assert decrypted == plaintext
